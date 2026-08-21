@@ -1,52 +1,53 @@
-# NTC Legal Repository — Design & Data Model
+# NTC Legal Repository — UI (Tabler)
 
-A structured, accessible, searchable repository for NTC's Municipal Codes (MC), laws, ordinances, and related governance documents.
+A working dashboard UI for browsing NTC Region VII laws, MCs, and orders — built on
+[Tabler](https://github.com/tabler/tabler) (via CDN, no build step needed).
 
-## Goal
+## What's here
 
-Convert mixed-format legal documents (Word, PDF, scanned, database exports) into a **single normalized HTML data model** so that:
+- `index.html` — the whole app: sidebar navigation by category, search, document list,
+  and detail view with clickable cross-references (e.g. click "EO 546" inside RA 7925's
+  text and it jumps straight to that document).
+- `data/documents.js` — the 3 pilot documents (RA 7925, EO 546, MC 04-89), structured as
+  plain JS objects mirroring the schema in the legal repo (`schema/document-schema.json`).
 
-1. The public can browse/search laws on an accessible website (WCAG-compliant).
-2. Internal staff can query, cross-reference, and govern using the same structured source of truth.
-3. Cross-references between sections ("see Sec. 3.12") become real, clickable, machine-readable links.
-4. The corpus is clean enough to power search indexing and AI-assisted query tools later.
+## Run it locally
 
-## Repo Structure
+No build step — just serve the folder:
 
-```
-ntc-legal-repo/
-├── README.md                  # This file
-├── docs/
-│   ├── design.md               # Full architecture & design doc
-│   ├── conversion-workflow.md  # How to convert source docs → HTML model
-│   └── accessibility.md        # WCAG checklist for public site
-├── schema/
-│   └── document-schema.json    # Metadata schema for each law/MC section
-├── examples/
-│   ├── source/                 # Sample raw inputs (what you start with)
-│   └── html/                   # Sample converted structured HTML
-└── scripts/
-    └── validate.py             # Checks HTML files against schema conventions
+```bash
+cd ntc-ui
+python3 -m http.server 8000
 ```
 
-## Quick Start
+Then open `http://localhost:8000` in a browser.
 
-1. Read `docs/design.md` for the full architecture.
-2. Look at `examples/source/` vs `examples/html/` to see a before/after conversion.
-3. Use `schema/document-schema.json` as the metadata contract every document must follow.
-4. Run `scripts/validate.py` against your converted files to catch missing IDs, broken cross-refs, etc.
+(Opening `index.html` directly by double-clicking also works in most browsers, but a local
+server avoids any file:// path quirks.)
 
-## Status
+## How it connects to the legal repo
 
-This is a design-stage repository. It now includes a **real pilot batch of 3 converted documents** from
-NTC Region VII (region7.ntc.gov.ph), pulled from their public Laws, Rules and Regulations page:
+This UI reads from `data/documents.js`, not directly from the `.html` files in the legal
+repo's `examples/html/` folder. That's intentional for now — it keeps the UI simple and
+fast while the legal repo stays the canonical source of truth for the actual legal text
+and metadata.
 
-- `examples/html/ra-7925.html` — Republic Act 7925, Public Telecommunications Policy Act
-- `examples/html/eo-546.html` — Executive Order 546, creating the NTC
-- `examples/html/mc-04-89.html` — Memorandum Circular 04-89, Sanctions for Violations
+**As you convert more documents in the legal repo**, add a matching entry to
+`data/documents.js` following the same shape: `id`, `title`, `category`, `status`,
+`effective_date`, `tags`, `cross_references`, and `sections` (each with a `heading` and
+`body`, plus an optional `refs` array if that section should auto-link to another
+document's short title).
 
-All three pass `scripts/validate.py` with 0 errors. This proves the conversion pipeline on real,
-messy source PDFs (including one with heavy OCR artifacts in other MCs on the same site).
+## Next steps for scaling this up
 
-Next steps: pull more documents from the same index page (region7.ntc.gov.ph/information/laws-rules-and-regulations/),
-convert at scale, and stand up the search/query layer described in `docs/design.md`.
+1. **Automate the sync**: write a small script that reads the metadata JSON comment block
+   out of each `examples/html/*.html` file in the legal repo and regenerates
+   `data/documents.js` automatically, so you're not hand-editing both.
+2. **Move to real search**: once you have 50+ documents, swap the in-browser `.filter()`
+   search for a proper index (Typesense, Elasticsearch, or even a lightweight client-side
+   library like Lunr.js) — the current search is fine for a handful of docs but won't
+   scale past a few hundred.
+3. **Publish**: this static site can be hosted for free on GitHub Pages directly from this
+   repo, or deployed anywhere that serves static files.
+4. **Accessibility pass**: run this through the WCAG checklist in the legal repo's
+   `docs/accessibility.md` before treating it as public-facing.
