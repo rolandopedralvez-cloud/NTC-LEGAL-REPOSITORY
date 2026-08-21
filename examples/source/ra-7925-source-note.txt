@@ -1,0 +1,6 @@
+[Source: https://region7.ntc.gov.ph/wp-content/uploads/2024/01/RA_7925_Telecomm.pdf]
+[Fetched: 2026-08-21]
+
+See examples/html/ra-7925.html for the converted, structured version.
+Full raw text was fetched via web tooling and used to produce that conversion; the original
+PDF should be archived separately (not stored in this repo) as the legal source-of-truth backup.
