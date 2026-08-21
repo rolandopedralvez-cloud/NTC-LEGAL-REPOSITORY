@@ -1,0 +1,11 @@
+[Source: https://region7.ntc.gov.ph/wp-content/uploads/2024/01/RA_3846_as_amended.pdf]
+[Fetched: 2026-08-21]
+[STATUS: SKIPPED — scanned/image-only PDF, no machine-readable text]
+
+This is Republic Act 3846 (the Radio Control Law), one of the most frequently-cited laws
+across NTC's Memorandum Circulars (see mc-04-89.html, mc-87-174.html, mc-14-09-92.html,
+all of which cite Act 3846 as legal basis).
+
+Per docs/conversion-workflow.md Step 2, this document needs OCR before conversion — it
+could not be extracted as plain text via standard fetching. Flagging as a priority OCR
+target given how frequently it's referenced by other already-converted documents.
