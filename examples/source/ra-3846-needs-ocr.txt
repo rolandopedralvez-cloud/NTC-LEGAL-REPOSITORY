@@ -1,0 +1,9 @@
+[Source: https://region7.ntc.gov.ph/wp-content/uploads/2024/01/RA_3846_as_amended.pdf]
+[Fetched: 2026-08-21]
+[STATUS: RESOLVED — see act-3846.html]
+
+The standalone PDF at the URL above remains a scanned/image-only PDF with no extractable text.
+However, the full genuine text of Act 3846 was subsequently recovered from a compiled reference
+document also hosted on region7.ntc.gov.ph (Basis_for_NTC_practices.pdf), which contains Act 3846
+as its first entry in full, machine-readable form. That fetch was verified and used to produce
+examples/html/act-3846.html. This note is kept for the record of the original failed attempt.
