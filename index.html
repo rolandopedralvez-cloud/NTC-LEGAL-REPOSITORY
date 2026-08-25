@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@latest/tabler-icons.min.css">
 <style>
   body { background: var(--tblr-body-bg); }
-  .doc-card { cursor: pointer; transition: box-shadow .15s ease; }
+  .doc-card { cursor: pointer; transition: box-shadow .15s ease; position: relative; }
   .doc-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,.08); }
   .xref-link { cursor: pointer; }
   .section-block { border-left: 3px solid var(--tblr-primary); padding-left: 1rem; margin-bottom: 1.25rem; }
@@ -16,14 +16,42 @@
   .status-amended { background: #fff3cd; color: #8a6300; }
   .status-repealed { background: #fde2e2; color: #a11; }
   #detailView { display: none; }
-  .highlight { background: #fff59d; }
+  #binderView { display: none; }
+  mark.hit { background: #fff59d; padding: 0 2px; }
+  .binder-toggle { position: absolute; top: .5rem; right: .5rem; z-index: 2; }
+  .binder-toggle .btn { padding: .25rem .5rem; }
+  .binder-badge-count { position: relative; top: -1px; }
+
+  /* Print styles: hide chrome, show only the active document cleanly */
+  @media print {
+    .navbar-vertical, .page-header, .footer, .d-print-none, #searchBox, .binder-toggle,
+    #listView, #binderView, .btn { display: none !important; }
+    .page-wrapper { margin: 0 !important; }
+    #detailView { display: block !important; }
+    body { background: white; }
+    .card { border: none !important; box-shadow: none !important; }
+    .section-block { border-left: 2px solid #333; page-break-inside: avoid; }
+    a { color: black !important; text-decoration: none !important; }
+    #printCitationBlock { display: block !important; border-top: 1px solid #333; margin-top: 2rem; padding-top: 1rem; font-size: .85rem; color: #555; }
+  }
+  #printCitationBlock { display: none; }
+
+  /* Hierarchical sidebar nav (mirrors region7.ntc.gov.ph structure) */
+  .nav-link-icon { min-width: 20px; }
+  .mc-subgroup { padding-left: .5rem; }
+  .mc-subgroup .nav-link { font-size: .85rem; padding-top: .4rem; padding-bottom: .4rem; }
+  .mc-subgroup .nav-link.disabled { opacity: .4; pointer-events: none; }
+  .nav-group-toggle { cursor: pointer; }
+  .nav-group-toggle .chevron { margin-left:auto; transition: transform .15s ease; }
+  .nav-group-toggle.collapsed .chevron { transform: rotate(-90deg); }
+  .count-badge { margin-left:auto; font-size:.7rem; }
 </style>
 </head>
 <body>
 <div class="page">
 
   <!-- Sidebar -->
-  <aside class="navbar navbar-vertical navbar-expand-lg navbar-dark" style="background:#1e2938;">
+  <aside class="navbar navbar-vertical navbar-expand-lg navbar-dark d-print-none" style="background:#1e2938; overflow-y:auto;">
     <div class="container-fluid">
       <h1 class="navbar-brand navbar-brand-autodark">
         <span class="text-white">NTC Legal Repository</span>
@@ -32,10 +60,23 @@
         <ul class="navbar-nav pt-lg-3" id="categoryNav">
           <li class="nav-item"><a class="nav-link active" href="#" data-cat="all"><span class="nav-link-icon"><i class="ti ti-book-2"></i></span><span class="nav-link-title">All Documents</span></a></li>
         </ul>
+        <!-- Populated dynamically by buildCategoryNav() to mirror region7.ntc.gov.ph's
+             Republic Acts / Presidential Decrees / Department Orders / Executive Orders /
+             Memorandum Circulars (A-O sub-categories) structure -->
+        <ul class="navbar-nav" id="lawTypeNav"></ul>
+        <hr class="text-white-50 mx-3">
+        <ul class="navbar-nav pb-lg-3">
+          <li class="nav-item">
+            <a class="nav-link" href="#" onclick="showBinder(); return false;">
+              <span class="nav-link-icon"><i class="ti ti-folder"></i></span>
+              <span class="nav-link-title">Case Binder</span>
+              <span class="badge bg-blue ms-2 binder-badge-count" id="binderCount">0</span>
+            </a>
+          </li>
+        </ul>
       </div>
     </div>
   </aside>
-
   <div class="page-wrapper">
     <!-- Top header -->
     <div class="page-header d-print-none">
@@ -58,9 +99,40 @@
         <!-- List view -->
         <div id="listView" class="row row-cards"></div>
 
+        <!-- Case Binder view -->
+        <div id="binderView">
+          <div class="d-flex justify-content-between align-items-center mb-3 d-print-none">
+            <div>
+              <h3 class="mb-0">Case Binder</h3>
+              <div class="text-secondary small">Documents you've pinned for a matter. Print or export this whole binder.</div>
+            </div>
+            <div>
+              <button class="btn btn-outline-secondary me-2" onclick="showList()"><i class="ti ti-arrow-left"></i> Back to list</button>
+              <button class="btn btn-primary" onclick="printBinder()"><i class="ti ti-printer"></i> Print Binder</button>
+            </div>
+          </div>
+          <div id="binderEmpty" class="empty d-print-none">
+            <p class="empty-title">Your case binder is empty</p>
+            <p class="empty-subtitle text-secondary">Click the folder icon on any document card or detail view to pin it here.</p>
+          </div>
+          <div id="binderContent"></div>
+        </div>
+
         <!-- Detail view -->
         <div id="detailView">
-          <button class="btn btn-outline-secondary mb-3" onclick="showList()"><i class="ti ti-arrow-left"></i> Back to list</button>
+          <div class="d-flex justify-content-between align-items-center mb-3 d-print-none">
+            <button class="btn btn-outline-secondary" onclick="showList()"><i class="ti ti-arrow-left"></i> Back to list</button>
+            <div>
+              <div class="btn-group me-2" role="group" id="viewModeToggle">
+                <input type="radio" class="btn-check" name="viewMode" id="viewModeSummary" checked onclick="setViewMode('summary')">
+                <label class="btn btn-outline-primary" for="viewModeSummary">Summary</label>
+                <input type="radio" class="btn-check" name="viewMode" id="viewModeFull" onclick="setViewMode('full')">
+                <label class="btn btn-outline-primary" for="viewModeFull">Full Original Text</label>
+              </div>
+              <button class="btn btn-outline-primary me-2" id="pinBtn" onclick="toggleBinderCurrent()"><i class="ti ti-folder-plus"></i> <span id="pinBtnLabel">Add to Binder</span></button>
+              <button class="btn btn-primary" onclick="window.print()"><i class="ti ti-printer"></i> Print / Save PDF</button>
+            </div>
+          </div>
           <div class="card">
             <div class="card-body" id="detailBody"></div>
           </div>
@@ -71,7 +143,7 @@
 
     <footer class="footer footer-transparent d-print-none">
       <div class="container-fluid">
-        <div class="text-secondary">Pilot build — 3 documents converted from region7.ntc.gov.ph. UI built on Tabler.</div>
+        <div class="text-secondary">28 documents converted from region7.ntc.gov.ph. UI built on Tabler.</div>
       </div>
     </footer>
   </div>
@@ -80,36 +152,168 @@
 <script src="https://cdn.jsdelivr.net/npm/@tabler/core@latest/dist/js/tabler.min.js"></script>
 <script src="data/documents.js"></script>
 <script>
-const docsById = Object.fromEntries(NTC_DOCUMENTS.map(d => [d.id, d]));
+let docsById = Object.fromEntries(NTC_DOCUMENTS.map(d => [d.id, d]));
 let currentCategory = "all";
 let currentQuery = "";
+let currentDetailId = null;
+let currentViewMode = "summary"; // "summary" | "full"
+
+/* ---------- Case Binder (localStorage-backed) ---------- */
+const BINDER_KEY = "ntc_case_binder_v1";
+function getBinder() {
+  try { return JSON.parse(localStorage.getItem(BINDER_KEY)) || []; }
+  catch (e) { return []; }
+}
+function saveBinder(ids) {
+  localStorage.setItem(BINDER_KEY, JSON.stringify(ids));
+  updateBinderCount();
+}
+function isInBinder(id) { return getBinder().includes(id); }
+function toggleBinder(id) {
+  let ids = getBinder();
+  if (ids.includes(id)) ids = ids.filter(x => x !== id);
+  else ids.push(id);
+  saveBinder(ids);
+  renderList();
+  if (currentDetailId === id) updatePinButton();
+  if (document.getElementById("binderView").style.display === "block") renderBinder();
+}
+function toggleBinderCurrent() { if (currentDetailId) toggleBinder(currentDetailId); }
+function updateBinderCount() {
+  document.getElementById("binderCount").textContent = getBinder().length;
+}
+function updatePinButton() {
+  const pinned = isInBinder(currentDetailId);
+  document.getElementById("pinBtnLabel").textContent = pinned ? "Remove from Binder" : "Add to Binder";
+  document.getElementById("pinBtn").className = pinned ? "btn btn-primary me-2" : "btn btn-outline-primary me-2";
+}
+
+/* ---------- Category nav (mirrors region7.ntc.gov.ph structure) ---------- */
+
+// The exact top-level structure from region7.ntc.gov.ph/laws-rules-and-regulations/
+const REGION7_STRUCTURE = [
+  { label: "Republic Acts", category: "Republic Acts", icon: "ti-gavel" },
+  { label: "Presidential Decrees", category: "Presidential Decrees", icon: "ti-stamp" },
+  { label: "Department Orders", category: "Department Orders", icon: "ti-building-bank" },
+  { label: "Executive Orders", category: "Executive Orders", icon: "ti-certificate" },
+  { label: "Foundational Laws", category: "Foundational Laws", icon: "ti-scale" }
+];
+
+// The exact A-O Memorandum Circular sub-categories as listed on region7.ntc.gov.ph
+const MC_SUBCATEGORIES = [
+  { letter: "A", label: "Aeronautical Services", category: "Memorandum Circulars — Aeronautical Services" },
+  { letter: "B", label: "Amateur Services", category: "Memorandum Circulars — Amateur Services" },
+  { letter: "C", label: "Broadcast Services", category: "Memorandum Circulars — Broadcast Services" },
+  { letter: "D", label: "Cellular Mobile Services", category: "Memorandum Circulars — Cellular Mobile Services" },
+  { letter: "E", label: "CPE (Customer Premises Equipment)", category: "Memorandum Circulars — CPE Services" },
+  { letter: "F", label: "Civic Group Services", category: "Memorandum Circulars — Civic Group Services" },
+  { letter: "G", label: "Fixed and Land Mobile Services", category: "Memorandum Circulars — Fixed and Land Mobile Services" },
+  { letter: "H", label: "Low Power Equipment", category: "Memorandum Circulars — Low Power Equipment" },
+  { letter: "I", label: "Maritime Services", category: "Memorandum Circulars — Maritime Services" },
+  { letter: "J", label: "Radio Communication Dealers Services", category: "Memorandum Circulars — Radio Communication Dealers Services" },
+  { letter: "K", label: "Radio Operator's Certificate (ROC)", category: "Memorandum Circulars — Radio Operator's Certificate (ROC)" },
+  { letter: "L", label: "Radio Training Center", category: "Memorandum Circulars — Radio Training Center" },
+  { letter: "M", label: "Telecom Services", category: "Memorandum Circulars — Telecom Services" },
+  { letter: "N", label: "Value Added Services", category: "Memorandum Circulars — Value Added Services" },
+  { letter: "O", label: "Wireless Data Network Services (WDN)", category: "Memorandum Circulars — Wireless Data Network Services (WDN)" },
+  { letter: "P", label: "General Services", category: "Memorandum Circulars — General Services" }
+];
+
+function countInCategory(cat) {
+  return NTC_DOCUMENTS.filter(d => d.category === cat).length;
+}
 
 function buildCategoryNav() {
-  const cats = [...new Set(NTC_DOCUMENTS.map(d => d.category))];
-  const nav = document.getElementById("categoryNav");
-  cats.forEach(cat => {
+  const nav = document.getElementById("lawTypeNav");
+  nav.innerHTML = "";
+
+  // Top-level law types (Republic Acts, Presidential Decrees, Department Orders,
+  // Executive Orders) — only render ones that actually have documents, plus always
+  // show Foundational Laws since Act 3846 lives there.
+  REGION7_STRUCTURE.forEach(item => {
+    const count = countInCategory(item.category);
     const li = document.createElement("li");
     li.className = "nav-item";
-    li.innerHTML = `<a class="nav-link" href="#" data-cat="${cat}"><span class="nav-link-icon"><i class="ti ti-file-text"></i></span><span class="nav-link-title">${cat}</span></a>`;
+    const disabled = count === 0 ? "disabled" : "";
+    li.innerHTML = `
+      <a class="nav-link ${disabled}" href="#" data-cat="${item.category}">
+        <span class="nav-link-icon"><i class="ti ${item.icon}"></i></span>
+        <span class="nav-link-title">${item.label}</span>
+        <span class="badge bg-secondary-lt count-badge">${count}</span>
+      </a>`;
     nav.appendChild(li);
   });
-  nav.addEventListener("click", e => {
-    const a = e.target.closest("a[data-cat]");
-    if (!a) return;
-    e.preventDefault();
-    document.querySelectorAll("#categoryNav .nav-link").forEach(el => el.classList.remove("active"));
-    a.classList.add("active");
-    currentCategory = a.dataset.cat;
-    document.getElementById("pageTitle").textContent = currentCategory === "all" ? "All Documents" : currentCategory;
-    showList();
-    renderList();
+
+  // Memorandum Circulars as a collapsible group with A-O (+ General) sub-categories,
+  // matching the lettered list on region7.ntc.gov.ph/laws-rules-and-regulations/
+  const mcTotal = NTC_DOCUMENTS.filter(d => d.category.startsWith("Memorandum Circulars")).length;
+  const groupLi = document.createElement("li");
+  groupLi.className = "nav-item";
+  groupLi.innerHTML = `
+    <a class="nav-link nav-group-toggle" href="#" id="mcGroupToggle">
+      <span class="nav-link-icon"><i class="ti ti-files"></i></span>
+      <span class="nav-link-title">Memorandum Circulars</span>
+      <span class="badge bg-secondary-lt count-badge me-1">${mcTotal}</span>
+      <i class="ti ti-chevron-down chevron"></i>
+    </a>
+    <ul class="navbar-nav mc-subgroup" id="mcSubgroup"></ul>
+  `;
+  nav.appendChild(groupLi);
+
+  const subgroup = groupLi.querySelector("#mcSubgroup");
+  MC_SUBCATEGORIES.forEach(sub => {
+    const count = countInCategory(sub.category);
+    const li = document.createElement("li");
+    li.className = "nav-item";
+    const disabled = count === 0 ? "disabled" : "";
+    li.innerHTML = `
+      <a class="nav-link ${disabled}" href="#" data-cat="${sub.category}">
+        <span class="nav-link-icon" style="font-size:.75rem; font-weight:600;">${sub.letter}.</span>
+        <span class="nav-link-title">${sub.label}</span>
+        <span class="badge bg-secondary-lt count-badge">${count}</span>
+      </a>`;
+    subgroup.appendChild(li);
   });
+
+  groupLi.querySelector("#mcGroupToggle").addEventListener("click", e => {
+    e.preventDefault();
+    const toggle = e.currentTarget;
+    toggle.classList.toggle("collapsed");
+    subgroup.style.display = toggle.classList.contains("collapsed") ? "none" : "block";
+  });
+
+  // Single delegated click handler across both the "All Documents" list and the
+  // dynamically built law-type/MC nav.
+  document.getElementById("categoryNav").addEventListener("click", handleCategoryClick);
+  nav.addEventListener("click", handleCategoryClick);
+}
+
+function handleCategoryClick(e) {
+  const a = e.target.closest("a[data-cat]");
+  if (!a || a.classList.contains("disabled")) return;
+  e.preventDefault();
+  document.querySelectorAll("#categoryNav .nav-link, #lawTypeNav .nav-link").forEach(el => el.classList.remove("active"));
+  a.classList.add("active");
+  currentCategory = a.dataset.cat;
+  const label = a.querySelector(".nav-link-title")?.textContent || "All Documents";
+  document.getElementById("pageTitle").textContent = currentCategory === "all" ? "All Documents" : label;
+  showList();
+  renderList();
 }
 
 function statusBadge(status) {
   return `<span class="badge status-${status}" style="text-transform:capitalize;">${status}</span>`;
 }
 
+/* ---------- Search highlighting ---------- */
+function escapeRegExp(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
+function highlight(text, q) {
+  if (!q) return text;
+  const re = new RegExp("(" + escapeRegExp(q) + ")", "gi");
+  return text.replace(re, "<mark class=\"hit\">$1</mark>");
+}
+
+/* ---------- List view ---------- */
 function renderList() {
   const container = document.getElementById("listView");
   container.innerHTML = "";
@@ -119,7 +323,7 @@ function renderList() {
     const catMatch = currentCategory === "all" || d.category === currentCategory;
     if (!catMatch) return false;
     if (!q) return true;
-    const haystack = (d.title + " " + d.tags.join(" ") + " " + d.sections.map(s => s.heading + " " + s.body).join(" ")).toLowerCase();
+    const haystack = (d.title + " " + d.shortTitle + " " + d.tags.join(" ") + " " + d.sections.map(s => s.heading + " " + s.body).join(" ")).toLowerCase();
     return haystack.includes(q);
   });
 
@@ -131,14 +335,21 @@ function renderList() {
   filtered.forEach(d => {
     const col = document.createElement("div");
     col.className = "col-md-6 col-lg-4";
+    const pinned = isInBinder(d.id);
+    const titleHtml = q ? highlight(d.title, currentQuery.trim()) : d.title;
     col.innerHTML = `
-      <div class="card doc-card h-100" onclick="showDetail('${d.id}')">
-        <div class="card-body">
+      <div class="card doc-card h-100">
+        <div class="binder-toggle">
+          <button class="btn ${pinned ? 'btn-primary' : 'btn-outline-secondary'}" title="${pinned ? 'Remove from binder' : 'Add to binder'}" onclick="event.stopPropagation(); toggleBinder('${d.id}')">
+            <i class="ti ${pinned ? 'ti-folder-check' : 'ti-folder-plus'}"></i>
+          </button>
+        </div>
+        <div class="card-body" onclick="showDetail('${d.id}')" style="cursor:pointer;">
           <div class="d-flex justify-content-between align-items-start mb-2">
             <span class="badge bg-blue-lt">${d.shortTitle}</span>
             ${statusBadge(d.status)}
           </div>
-          <h3 class="card-title mb-1" style="font-size:1rem;">${d.title}</h3>
+          <h3 class="card-title mb-1" style="font-size:1rem; padding-right: 2rem;">${titleHtml}</h3>
           <div class="text-secondary small mb-2">${d.category} · Effective ${d.effective_date}</div>
           <div>${d.tags.map(t => `<span class="badge bg-secondary-lt me-1">${t}</span>`).join("")}</div>
         </div>
@@ -147,19 +358,22 @@ function renderList() {
   });
 }
 
-function renderSections(doc) {
+/* ---------- Detail view ---------- */
+function renderSections(doc, q) {
   return doc.sections.map(s => {
     let body = s.body;
     if (s.refs) {
       s.refs.forEach(refId => {
         const refDoc = docsById[refId];
         if (refDoc) {
-          const re = new RegExp(refDoc.shortTitle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), "g");
+          const re = new RegExp(escapeRegExp(refDoc.shortTitle), "g");
           body = body.replace(re, `<a href="#" class="xref-link" onclick="event.stopPropagation();showDetail('${refId}')">${refDoc.shortTitle}</a>`);
         }
       });
     }
-    return `<div class="section-block"><h4>${s.heading}</h4><p class="mb-0">${body}</p></div>`;
+    let heading = s.heading;
+    if (q) { body = highlight(body, q); heading = highlight(heading, q); }
+    return `<div class="section-block"><h4>${heading}</h4><p class="mb-0">${body}</p></div>`;
   }).join("");
 }
 
@@ -168,7 +382,7 @@ function renderCrossRefs(doc) {
   const links = doc.cross_references.map(refId => {
     const refDoc = docsById[refId];
     if (!refDoc) return "";
-    return `<a href="#" class="btn btn-outline-primary btn-sm me-2 mb-2" onclick="showDetail('${refId}')"><i class="ti ti-link"></i> ${refDoc.shortTitle}</a>`;
+    return `<a href="#" class="btn btn-outline-primary btn-sm me-2 mb-2 d-print-none" onclick="showDetail('${refId}')"><i class="ti ti-link"></i> ${refDoc.shortTitle}</a>`;
   }).join("");
   return `<div class="mt-4"><h4>Related Documents</h4>${links}</div>`;
 }
@@ -176,34 +390,125 @@ function renderCrossRefs(doc) {
 function referencedBy(docId) {
   const refs = NTC_DOCUMENTS.filter(d => d.cross_references && d.cross_references.includes(docId));
   if (refs.length === 0) return "";
-  const links = refs.map(d => `<a href="#" class="btn btn-outline-secondary btn-sm me-2 mb-2" onclick="showDetail('${d.id}')"><i class="ti ti-arrow-back-up"></i> ${d.shortTitle}</a>`).join("");
+  const links = refs.map(d => `<a href="#" class="btn btn-outline-secondary btn-sm me-2 mb-2 d-print-none" onclick="showDetail('${d.id}')"><i class="ti ti-arrow-back-up"></i> ${d.shortTitle}</a>`).join("");
   return `<div class="mt-3"><h4>Referenced By</h4>${links}</div>`;
 }
 
-function showDetail(id) {
-  const doc = docsById[id];
-  if (!doc) return;
-  document.getElementById("listView").style.display = "none";
-  document.getElementById("detailView").style.display = "block";
+/* Formal citation line, used in print and detail views */
+function citationLine(doc) {
+  const retrieved = new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
+  return `National Telecommunications Commission, <em>${doc.title}</em> (${doc.effective_date}), NTC Legal Repository, retrieved ${retrieved}.`;
+}
+
+function renderFullText(doc, q) {
+  if (!doc.fullText) {
+    return `
+      <div class="alert alert-warning d-print-none" role="alert">
+        <div class="d-flex">
+          <div><i class="ti ti-alert-triangle icon alert-icon"></i></div>
+          <div>The verbatim original text for this document hasn't been added to the repository yet — only the summarized sections below are available. Full-text backfill is in progress across the collection.</div>
+        </div>
+      </div>
+      <div class="section-block"><p class="text-secondary fst-italic">Showing summary sections instead:</p></div>
+      ${renderSections(doc, q)}
+    `;
+  }
+  let text = doc.fullText;
+  if (q) text = highlight(text, q);
+  return `
+    <div class="card bg-light">
+      <div class="card-body">
+        <pre style="white-space: pre-wrap; font-family: inherit; font-size: .95rem; margin: 0;">${text}</pre>
+      </div>
+    </div>
+  `;
+}
+
+function setViewMode(mode) {
+  currentViewMode = mode;
+  if (currentDetailId) renderDetailBody(docsById[currentDetailId]);
+}
+
+function renderDetailBody(doc) {
+  const q = currentQuery.trim();
+  const bodyHtml = currentViewMode === "full" ? renderFullText(doc, q) : renderSections(doc, q);
   document.getElementById("detailBody").innerHTML = `
     <div class="d-flex justify-content-between align-items-start mb-3">
       <div>
         <div class="text-secondary small mb-1">${doc.category}</div>
         <h2 class="mb-1">${doc.title}</h2>
-        <div>${statusBadge(doc.status)} <span class="text-secondary ms-2">Effective ${doc.effective_date}</span></div>
+        <div>${statusBadge(doc.status)} <span class="text-secondary ms-2">Effective ${doc.effective_date}</span>
+          ${currentViewMode === "full" && doc.fullText ? '<span class="badge bg-green-lt ms-2">Verbatim Original</span>' : ''}
+        </div>
       </div>
     </div>
     <div class="mb-3">${doc.tags.map(t => `<span class="badge bg-secondary-lt me-1">${t}</span>`).join("")}</div>
     <hr>
-    ${renderSections(doc)}
-    ${renderCrossRefs(doc)}
-    ${referencedBy(doc.id)}
+    ${bodyHtml}
+    ${currentViewMode === "summary" ? renderCrossRefs(doc) : ""}
+    ${currentViewMode === "summary" ? referencedBy(doc.id) : ""}
+    <div id="printCitationBlock">${citationLine(doc)}</div>
   `;
+}
+
+function showDetail(id) {
+  const doc = docsById[id];
+  if (!doc) return;
+  currentDetailId = id;
+  currentViewMode = "summary";
+  document.getElementById("viewModeSummary").checked = true;
+  document.getElementById("listView").style.display = "none";
+  document.getElementById("binderView").style.display = "none";
+  document.getElementById("detailView").style.display = "block";
+  renderDetailBody(doc);
+  updatePinButton();
   window.scrollTo(0,0);
+}
+
+/* ---------- Case Binder view ---------- */
+function renderBinder() {
+  const ids = getBinder();
+  const empty = document.getElementById("binderEmpty");
+  const content = document.getElementById("binderContent");
+  if (ids.length === 0) {
+    empty.style.display = "block";
+    content.innerHTML = "";
+    return;
+  }
+  empty.style.display = "none";
+  const docs = ids.map(id => docsById[id]).filter(Boolean);
+  content.innerHTML = docs.map(doc => `
+    <div class="card mb-3">
+      <div class="card-body">
+        <div class="d-flex justify-content-between align-items-start mb-2 d-print-none">
+          <div class="text-secondary small">${doc.category}</div>
+          <button class="btn btn-sm btn-outline-danger" onclick="toggleBinder('${doc.id}')"><i class="ti ti-x"></i> Remove</button>
+        </div>
+        <h3>${doc.title}</h3>
+        <div class="mb-2">${statusBadge(doc.status)} <span class="text-secondary ms-2">Effective ${doc.effective_date}</span></div>
+        ${renderSections(doc, "")}
+        <div class="text-secondary small mt-3" style="border-top:1px solid #ddd; padding-top:.5rem;">${citationLine(doc)}</div>
+      </div>
+    </div>
+  `).join("");
+}
+
+function showBinder() {
+  document.getElementById("listView").style.display = "none";
+  document.getElementById("detailView").style.display = "none";
+  document.getElementById("binderView").style.display = "block";
+  renderBinder();
+}
+
+function printBinder() {
+  // Temporarily show binder content under print rules by reusing browser print;
+  // binder view already has print-safe markup (buttons hidden via d-print-none).
+  window.print();
 }
 
 function showList() {
   document.getElementById("detailView").style.display = "none";
+  document.getElementById("binderView").style.display = "none";
   document.getElementById("listView").style.display = "flex";
 }
 
@@ -213,6 +518,7 @@ document.getElementById("searchBox").addEventListener("input", e => {
 });
 
 buildCategoryNav();
+updateBinderCount();
 renderList();
 </script>
 </body>

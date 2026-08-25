@@ -1,45 +1,98 @@
-# NTC Project — Combined Package
+# NTC Legal Repository — UI (Tabler)
 
-This zip contains BOTH pieces of the NTC project, bundled for easy upload from mobile:
+A working dashboard UI for browsing NTC Region VII laws, MCs, and orders — built on
+[Tabler](https://github.com/tabler/tabler) (via CDN, no build step needed).
 
-```
-NTC-COMBINED/
-├── NTC-LEGAL-REPOSITORY/   ← push to your existing rolandopedralvez-cloud/NTC-LEGAL-REPOSITORY repo
-└── NTC-UI/                 ← push to a NEW repo (e.g. NTC-UI) for the dashboard
-```
+## What's here
 
-## How to upload from GitHub's mobile/web interface
+- `index.html` — the whole app: sidebar navigation by category, search with highlighting,
+  document list, detail view with clickable cross-references, a **Case Binder** for pinning
+  documents to a matter, and a **Print / Save PDF** view with formal citation formatting.
+- `data/documents.js` — 28 converted documents from NTC Region VII, structured as plain JS
+  objects mirroring the schema in the legal repo (`schema/document-schema.json`).
 
-1. Extract this zip on your device (any file manager or "zip extractor" app).
-2. Use GitHub's "Add file → Upload files" to upload `NTC-LEGAL-REPOSITORY/` contents into your
-   existing repo, and `NTC-UI/` contents into a new repo you create.
+## Features
 
-### When you're back on a PC
+**Category navigation** — the sidebar mirrors the actual structure of
+region7.ntc.gov.ph/laws-rules-and-regulations/: top-level Republic Acts, Presidential
+Decrees, Department Orders, and Executive Orders, plus a collapsible Memorandum Circulars
+group with the same lettered A–O sub-categories used on the real site (Aeronautical,
+Amateur, Broadcast, Cellular Mobile, CPE, Civic Group, Fixed and Land Mobile, Low Power
+Equipment, Maritime, Radio Communication Dealers, ROC, Radio Training Center, Telecom,
+Value Added, Wireless Data Network). Each entry shows a document count; categories with no
+converted documents yet appear greyed out rather than being hidden, so the full scope of
+the source site stays visible even before every category has content.
+
+**Search** — filters titles, tags, and section text as you type; matching terms are
+highlighted inline in both the list and detail views.
+
+**Full document view** — every section, cross-references rendered as live links, a
+"Referenced By" reverse-lookup, and status badges (Active/Amended/Repealed). A
+**Summary / Full Original Text toggle** lets you switch between the paraphrased section
+view and the verbatim original wording as issued by NTC — the print button prints whichever
+view is active. Documents without verbatim text yet fall back to the summary with a clear
+notice, rather than silently showing paraphrased content as if it were the original.
+
+**Print / PDF view** — the "Print / Save PDF" button on any document strips all navigation
+chrome via a dedicated print stylesheet and appends a formal citation line (title, date,
+retrieval date) at the bottom — use your browser's "Save as PDF" print destination to export.
+When "Full Original Text" mode is active, this prints the verbatim text, matching what a case
+file would need.
+
+**Case Binder** — click the folder icon on any document card (or the "Add to Binder" button
+in detail view) to pin it to a working case file. The binder persists in the browser
+(`localStorage`) across sessions. Open the binder from the sidebar to see all pinned
+documents in one place, each with its section text and citation, ready to print as a single
+combined packet for a case or matter.
+
+## Run it locally
+
+No build step — just serve the folder:
+
 ```bash
-unzip NTC-COMBINED.zip
-cd NTC-COMBINED/NTC-LEGAL-REPOSITORY
-git remote add origin https://github.com/rolandopedralvez-cloud/NTC-LEGAL-REPOSITORY.git
-git push origin main
-
-cd ../NTC-UI
-git remote add origin https://github.com/rolandopedralvez-cloud/NTC-UI.git
-git branch -M main
-git push -u origin main
+cd ntc-ui
+python3 -m http.server 8000
 ```
 
-## What's new in this batch
+Then open `http://localhost:8000` in a browser.
 
-1 more real document added:
-- MC 19-12-2000 — Master Administrative Fee Schedule (General Services) — the comprehensive fee
-  schedule referenced by many other Circulars already in this repository
+(Opening `index.html` directly by double-clicking also works in most browsers, but a local
+server avoids any file:// path quirks.)
 
-**Note:** Two documents were briefly generated with plausible-but-unverified fee figures and have
-been removed — they were never actually fetched from a real source, only guessed at based on
-similar documents. Only content pulled from a real, verified fetch is included here.
+## How it connects to the legal repo
 
-**Total: 22 documents** (2 laws + 20 Memorandum Circulars across 12 categories), all validated with 0 errors.
-**Progress toward the 50-document target: 22/50.**
+This UI reads from `data/documents.js`, not directly from the `.html` files in the legal
+repo's `examples/html/` folder. That's intentional for now — it keeps the UI simple and
+fast while the legal repo stays the canonical source of truth for the actual legal text
+and metadata.
 
-Two source PDFs were found to be scanned images with no extractable text and are flagged for the
-OCR backlog: Republic Act 3846 (the Radio Control Law) and MC 03-03-2005A. See
-`NTC-LEGAL-REPOSITORY/examples/source/*-needs-ocr.txt`.
+**As you convert more documents in the legal repo**, add a matching entry to
+`data/documents.js` following the same shape: `id`, `title`, `category`, `status`,
+`effective_date`, `tags`, `cross_references`, `sections` (each with a `heading` and
+`body`, plus an optional `refs` array if that section should auto-link to another
+document's short title), and optionally `fullText` — the verbatim original text of the
+document as issued, used by the "Full Original Text" toggle. As of now, `fullText` is
+populated for 2 of 30 documents (MC 04-89, MC 06-04-99) as a proof of concept; the rest
+still fall back to the summary view. Since these are official Philippine government
+issuances, they are public domain under Philippine IP law, so reproducing them in full is
+not a copyright concern — the remaining gap is purely a matter of backfilling the fetches.
+
+## Next steps for scaling this up
+
+1. **Automate the sync**: write a small script that reads the metadata JSON comment block
+   out of each `examples/html/*.html` file in the legal repo and regenerates
+   `data/documents.js` automatically, so you're not hand-editing both.
+2. **Move to real search**: once you have 50+ documents, swap the in-browser `.filter()`
+   search for a proper index (Typesense, Elasticsearch, or even a lightweight client-side
+   library like Lunr.js) — the current search is fine for a handful of docs but won't
+   scale past a few hundred.
+3. **Case Binder upgrades**: name/save multiple binders (one per matter), add private notes
+   per document, export the whole binder as a single merged PDF rather than relying on
+   browser print, and — if this becomes a shared team tool — move binder storage from
+   `localStorage` (per-browser only) to the `window.storage` API so binders sync across
+   devices and users.
+4. **Publish**: this static site can be hosted for free on GitHub Pages directly from this
+   repo, or deployed anywhere that serves static files.
+5. **Accessibility pass**: run this through the WCAG checklist in the legal repo's
+   `docs/accessibility.md` before treating it as public-facing.
+
