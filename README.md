@@ -1,98 +1,79 @@
-# NTC Legal Repository — UI (Tabler)
+# NTC Legal Repository — NTC Region VII (Central Visayas)
 
-A working dashboard UI for browsing NTC Region VII laws, MCs, and orders — built on
-[Tabler](https://github.com/tabler/tabler) (via CDN, no build step needed).
+A structured, accessible, searchable repository of National Telecommunications Commission (NTC)
+laws, Memorandum Circulars, and related issuances, sourced from
+[region7.ntc.gov.ph/laws-rules-and-regulations](https://region7.ntc.gov.ph/laws-rules-and-regulations/).
 
-## What's here
+**Status: 32 of 50 target documents converted.**
 
-- `index.html` — the whole app: sidebar navigation by category, search with highlighting,
-  document list, detail view with clickable cross-references, a **Case Binder** for pinning
-  documents to a matter, and a **Print / Save PDF** view with formal citation formatting.
-- `data/documents.js` — 28 converted documents from NTC Region VII, structured as plain JS
-  objects mirroring the schema in the legal repo (`schema/document-schema.json`).
+## Repo structure
 
-## Features
-
-**Category navigation** — the sidebar mirrors the actual structure of
-region7.ntc.gov.ph/laws-rules-and-regulations/: top-level Republic Acts, Presidential
-Decrees, Department Orders, and Executive Orders, plus a collapsible Memorandum Circulars
-group with the same lettered A–O sub-categories used on the real site (Aeronautical,
-Amateur, Broadcast, Cellular Mobile, CPE, Civic Group, Fixed and Land Mobile, Low Power
-Equipment, Maritime, Radio Communication Dealers, ROC, Radio Training Center, Telecom,
-Value Added, Wireless Data Network). Each entry shows a document count; categories with no
-converted documents yet appear greyed out rather than being hidden, so the full scope of
-the source site stays visible even before every category has content.
-
-**Search** — filters titles, tags, and section text as you type; matching terms are
-highlighted inline in both the list and detail views.
-
-**Full document view** — every section, cross-references rendered as live links, a
-"Referenced By" reverse-lookup, and status badges (Active/Amended/Repealed). A
-**Summary / Full Original Text toggle** lets you switch between the paraphrased section
-view and the verbatim original wording as issued by NTC — the print button prints whichever
-view is active. Documents without verbatim text yet fall back to the summary with a clear
-notice, rather than silently showing paraphrased content as if it were the original.
-
-**Print / PDF view** — the "Print / Save PDF" button on any document strips all navigation
-chrome via a dedicated print stylesheet and appends a formal citation line (title, date,
-retrieval date) at the bottom — use your browser's "Save as PDF" print destination to export.
-When "Full Original Text" mode is active, this prints the verbatim text, matching what a case
-file would need.
-
-**Case Binder** — click the folder icon on any document card (or the "Add to Binder" button
-in detail view) to pin it to a working case file. The binder persists in the browser
-(`localStorage`) across sessions. Open the binder from the sidebar to see all pinned
-documents in one place, each with its section text and citation, ready to print as a single
-combined packet for a case or matter.
-
-## Run it locally
-
-No build step — just serve the folder:
-
-```bash
-cd ntc-ui
-python3 -m http.server 8000
+```
+NTC-LEGAL-REPOSITORY/
+├── README.md                  # this file
+├── docs/
+│   ├── design.md               # architecture & design doc
+│   ├── conversion-workflow.md  # source document → structured HTML pipeline
+│   └── accessibility.md        # WCAG checklist
+├── schema/
+│   └── document-schema.json    # metadata contract every document follows
+├── scripts/
+│   └── validate.py             # checks examples/html/ for missing IDs, broken cross-refs
+├── examples/
+│   ├── html/                   # the 32 converted documents (source of truth)
+│   └── source/                 # notes on documents that still need OCR or sourcing
+└── ui/
+    ├── index.html               # Tabler-based browsing dashboard
+    ├── README.md                 # UI-specific documentation
+    └── data/documents.js         # UI's data layer, mirrors examples/html/ content
 ```
 
-Then open `http://localhost:8000` in a browser.
+## What's converted (32 documents)
 
-(Opening `index.html` directly by double-clicking also works in most browsers, but a local
-server avoids any file:// path quirks.)
+- **Foundational laws**: act-3846 (Act 3846), eo-546 (Executive Order 546), ra-7925 (Republic Act 7925)
+- **Memorandum Circulars (29)**: mc-02-01-97, mc-02-02-2005, mc-02-03-87, mc-04-89,
+  mc-05-06-2007, mc-05-08-2018, mc-05-09-2001, mc-06-04-99, mc-07-08-2016, mc-07-08-85,
+  mc-08-08-2004, mc-09-07-2007, mc-09-4-94, mc-1-04-88, mc-10-07-2007, mc-10-10-2003,
+  mc-10-12-95, mc-11-11-2007, mc-11-12-2001, mc-11-21-88, mc-12-08-92, mc-13-09-2004,
+  mc-14-09-92, mc-14-89, mc-16-11-2004, mc-17-2-2002, mc-19-12-2000, mc-7-6-98, mc-87-174
 
-## How it connects to the legal repo
+Each document lives as one canonical HTML file in `examples/html/`, with a JSON metadata
+comment block matching `schema/document-schema.json` (id, title, type, status, effective
+date, amendment history, cross-references, tags, jurisdiction).
 
-This UI reads from `data/documents.js`, not directly from the `.html` files in the legal
-repo's `examples/html/` folder. That's intentional for now — it keeps the UI simple and
-fast while the legal repo stays the canonical source of truth for the actual legal text
-and metadata.
+**Verbatim full text** (the original wording as issued, not a paraphrase) has been
+backfilled for 3 of the 32 documents so far: MC 04-89, MC 06-04-99, MC 10-07-2007. The
+remaining 29 have structured summary sections only; the "Full Original Text" toggle in the
+UI falls back to the summary with a clear notice when verbatim text isn't available yet.
 
-**As you convert more documents in the legal repo**, add a matching entry to
-`data/documents.js` following the same shape: `id`, `title`, `category`, `status`,
-`effective_date`, `tags`, `cross_references`, `sections` (each with a `heading` and
-`body`, plus an optional `refs` array if that section should auto-link to another
-document's short title), and optionally `fullText` — the verbatim original text of the
-document as issued, used by the "Full Original Text" toggle. As of now, `fullText` is
-populated for 2 of 30 documents (MC 04-89, MC 06-04-99) as a proof of concept; the rest
-still fall back to the summary view. Since these are official Philippine government
-issuances, they are public domain under Philippine IP law, so reproducing them in full is
-not a copyright concern — the remaining gap is purely a matter of backfilling the fetches.
+Two source documents are flagged as scanned/non-machine-readable and are not yet
+convertible without OCR review — see `examples/source/*-needs-ocr.txt`.
 
-## Next steps for scaling this up
+## How the pieces fit together
 
-1. **Automate the sync**: write a small script that reads the metadata JSON comment block
-   out of each `examples/html/*.html` file in the legal repo and regenerates
-   `data/documents.js` automatically, so you're not hand-editing both.
-2. **Move to real search**: once you have 50+ documents, swap the in-browser `.filter()`
-   search for a proper index (Typesense, Elasticsearch, or even a lightweight client-side
-   library like Lunr.js) — the current search is fine for a handful of docs but won't
-   scale past a few hundred.
-3. **Case Binder upgrades**: name/save multiple binders (one per matter), add private notes
-   per document, export the whole binder as a single merged PDF rather than relying on
-   browser print, and — if this becomes a shared team tool — move binder storage from
-   `localStorage` (per-browser only) to the `window.storage` API so binders sync across
-   devices and users.
-4. **Publish**: this static site can be hosted for free on GitHub Pages directly from this
-   repo, or deployed anywhere that serves static files.
-5. **Accessibility pass**: run this through the WCAG checklist in the legal repo's
-   `docs/accessibility.md` before treating it as public-facing.
+`examples/html/` is the canonical source of truth — one structured HTML file per document,
+validated against `schema/document-schema.json`. The `ui/` folder is a separate, working
+dashboard (Tabler-based) that reads from `ui/data/documents.js`, a plain-JS mirror of the
+same documents, kept in sync by hand for now (see `ui/README.md` for the sync note and the
+full UI feature list — search, category sidebar, Case Binder, Print/PDF view, Summary/Full
+Text toggle).
 
+## Adding a new document
+
+1. Find the real document on region7.ntc.gov.ph and fetch the actual source PDF — never
+   fabricate content. If it's scanned/non-machine-readable, flag it in
+   `examples/source/[id]-needs-ocr.txt` and skip conversion.
+2. Follow `docs/conversion-workflow.md` to convert it into the same HTML structure used by
+   existing files in `examples/html/` (match an existing file's metadata block pattern).
+3. Run `python3 scripts/validate.py` — must show 0 errors.
+4. Add a matching entry to `ui/data/documents.js` with the same `id`.
+5. Update this README's document list and counts, and confirm the doc IDs listed here match
+   the actual files in `examples/html/` exactly.
+
+## Next steps
+
+1. Continue converting documents toward the 50-document target (18 remaining).
+2. Continue backfilling verbatim `fullText` for already-converted documents.
+3. Automate the sync between `examples/html/*.html` and `ui/data/documents.js` (currently
+   hand-maintained) so the two never drift.
+4. Run the WCAG checklist in `docs/accessibility.md` before treating the UI as public-facing.
