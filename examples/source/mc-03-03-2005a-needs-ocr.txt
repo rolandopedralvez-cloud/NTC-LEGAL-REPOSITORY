@@ -1,7 +1,0 @@
-[Source: https://region7.ntc.gov.ph/wp-content/uploads/2024/01/MC_03-03-2005A_Amendments_broadcast_messaging.pdf]
-[Fetched: 2026-08-21]
-[STATUS: SKIPPED — scanned/image-only PDF, no machine-readable text]
-
-Memorandum Circular 03-03-2005A (Amendments to Broadcast Messaging) could not be extracted
-as plain text via standard fetching. Per docs/conversion-workflow.md Step 2, this needs OCR
-before conversion. Flagging for the OCR backlog alongside RA 3846 (see ra-3846-needs-ocr.txt).
